@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Mod id="669be1ba-7530-419d-8246-d3863628dfe8" version="1">
+  <Properties>
+    <Name>LOC_AUTOPLAY_TITLE</Name>
+    <Stability>Beta</Stability>
+    <Teaser>LOC_AUTOPLAY_TEASER</Teaser>
+    <Description>LOC_AUTOPLAY_DESCRIPTION</Description>
+    <Authors>Firaxis, Gedemon</Authors>
+  </Properties>
+  <Dependencies />
+  <References />
+  <Blocks />  
+  <Settings />	
+  
+	<Components>
+		<UserInterface>		
+			<Properties>
+				<Context>InGame</Context>
+			</Properties>
+			<Items>
+				<File>AutoPlay_InGame.xml</File>
+			</Items>
+		</UserInterface>	
+	</Components>
+	
+	<LocalizedText>
+		<Text id="LOC_AUTOPLAY_TITLE">
+			<en_US>Autoplay</en_US>
+		</Text>
+		<Text id="LOC_AUTOPLAY_TEASER">
+			<en_US>Start the game in Autoplay, using Observer Camera based on Firaxis code</en_US>
+		</Text>
+		<Text id="LOC_AUTOPLAY_DESCRIPTION">
+			<en_US>Start the game in Autoplay, using Observer Camera based on Firaxis code</en_US>
+		</Text>
+	</LocalizedText>
+	
+	<Files>
+		<File>AutoPlay_InGame.xml</File>
+		<File>AutoPlay_InGame.lua</File>
+	</Files>
+</Mod>
