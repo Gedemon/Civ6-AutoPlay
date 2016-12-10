@@ -8,6 +8,9 @@ print("Loading AutoPlay_InGame.lua ...")
 
 include( "InstanceManager" );
 
+local turnFromStart = 0
+local bAllWar = false
+local bNotifications = true
 
 hstructure Entry
 	hasVisited : boolean;
@@ -408,9 +411,9 @@ end
 
 -------------------------------------------------------------------------------
 -- Start the current activity if it has not already
-local bAllowStart = true
+local bAutoCamera = true
 function StartCurrentActivity()
-	if not bAllowStart then
+	if (not bAutoCamera) or (turnFromStart < 2) then
 		return
 	end
 	
@@ -475,15 +478,15 @@ Events.CityVisibilityChanged.Add( OnCityVisibilityChanged );
 -------------------------------------------------------------------------------
 -- A players turn has started
 function OnPlayerTurnActivated( player, bFirstTime )
-	-- Look at their capital
+	local pPlayer = Players[player]
+
+	
 	if (bFirstTime) then
-
+	
+		-- Look at their capital
 		-- The player turn can change quickly, so see if we want to interrupt the current activity.  Do so only if we have been doing it for a while.
-
 		if (CurrentActivity.started == false or CurrentActivity.type ~= VisitActivity.Combat or CurrentActivity.lingering == true) then	-- Don't interrupt looking at some combat, unless we are in the 'linger' time
 			if (CurrentActivityPercentComplete() >= 50.0 or CurrentActivityElapsed() >= 3.0) then	-- Looking at our current activity for more than 50 percent of its duration or more than 3 seconds?
-
-				local pPlayer = Players[player];
 
 				-- We are also going to give it a chance that we don't look at the capital, so as to not bounce around too much.
 				if (pPlayer:IsMajor()) then
@@ -520,15 +523,36 @@ function OnPlayerTurnActivated( player, bFirstTime )
 				end
 			end
 		end
+		
+		-- try to start a war, one declaration at a time
+		if bAllWar and pPlayer:IsMajor() then
+			kParams = {}
+			kParams.WarState = WarTypes.SURPRISE_WAR
+			local bStartedWar = false
+			for _, player2 in ipairs(PlayerManager.GetWasEverAliveMajorIDs()) do
+				if player2 ~= player and not bStartedWar then
+					if not pPlayer:GetDiplomacy():IsAtWarWith(player2) then
+						DiplomacyManager.SendAction(player, player2, DiplomacyActionTypes.SET_WAR_STATE, kParams)
+						--if pPlayer:GetDiplomacy():IsAtWarWith(player2) then
+							bStartedWar = true
+						--end
+					end
+				end
+			end
+		end
+		
 	end
 end
 Events.PlayerTurnActivated.Add( OnPlayerTurnActivated );
 
 -------------------------------------------------------------------------------
 function OnCombatVisBegin(combatMembers)
+
+	local defender = combatMembers[2];
+	local bCityAttacked = defender.componentType == ComponentType.CITY	
 	
-	if (CurrentActivity.started == false or CurrentActivity.type ~= VisitActivity.Combat or CurrentActivity.lingering == true) then	-- Don't interrupt looking at some other combat, unless we are in the 'linger' time
-		if (CurrentActivityPercentComplete() >= 50.0 or CurrentActivityElapsed() >= 3.0		-- Looking at our current activity for more than 50 percent of its duration or more than a few seconds?
+	if (bCityAttacked or CurrentActivity.started == false or CurrentActivity.type ~= VisitActivity.Combat or CurrentActivity.lingering == true) then	-- Don't interrupt looking at some other combat, unless we are in the 'linger' time
+		if (bCityAttacked or CurrentActivityPercentComplete() >= 50.0 or CurrentActivityElapsed() >= 3.0		-- Looking at our current activity for more than 50 percent of its duration or more than a few seconds?
 			or CurrentActivity.type == VisitActivity.City) then								-- Or are we just looking at a city?
 			-- We are bored with that, lets look at something new
 			local attacker = combatMembers[1];
@@ -542,7 +566,16 @@ function OnCombatVisBegin(combatMembers)
 					CurrentActivity.duration = 20.0;		-- This will change dynamically
 					CurrentActivity.x = pUnit:GetX()
 					CurrentActivity.y = pUnit:GetY();
-
+					
+					if bCityAttacked then
+						local pCity = CityManager.GetCity(defender.playerID, defender.componentID);
+						if (pCity ~= nil) then
+							StatusMessage( "BREAKING NEWS : A city is attacked !!!", 3, ReportingStatusTypes.DEFAULT )
+							CurrentActivity.x = pCity:GetX()
+							CurrentActivity.y = pCity:GetY();
+						end
+					end
+					
 					StartCurrentActivity();
 				end			
 			end
@@ -680,6 +713,17 @@ function OnAutomationGameStarted()
 	ContextPtr:LookUpControl("/InGame/WorldViewIconsManager"):SetHide(true)
 	ContextPtr:LookUpControl("/InGame/WorldViewPlotMessages"):SetHide(true)
 	
+	Events.WonderCompleted.Add( OnWonderCompleted );
+	Events.DiplomacyDeclareWar.Add( OnDiplomacyDeclareWar );
+	Events.DiplomacyMakePeace.Add( OnDiplomacyMakePeace );	
+	Events.DiplomacyRelationshipChanged.Add( OnDiplomacyRelationshipChanged );	
+	Events.PlayerDefeat.Add( OnPlayerDefeat );	
+	Events.PlayerVictory.Add( OnPlayerVictory );
+	Events.PlayerEraChanged.Add( OnPlayerEraChanged );	
+	Events.CityOccupationChanged.Add( OnCityOccupationChanged );	
+	Events.SpyMissionUpdated.Add( OnSpyMissionUpdated );			
+	Events.UnitActivate.Add( OnUnitActivate );
+	
 	Initialize();
 end
 
@@ -698,9 +742,177 @@ function OnAutomationGameEnded()
 	ContextPtr:LookUpControl("/InGame/WorldViewIconsManager"):SetHide(false)
 	ContextPtr:LookUpControl("/InGame/WorldViewPlotMessages"):SetHide(false)
 	
+	Events.WonderCompleted.Remove( OnWonderCompleted );
+	Events.DiplomacyDeclareWar.Remove( OnDiplomacyDeclareWar );
+	Events.DiplomacyMakePeace.Remove( OnDiplomacyMakePeace );	
+	Events.DiplomacyRelationshipChanged.Remove( OnDiplomacyRelationshipChanged );	
+	Events.PlayerDefeat.Remove( OnPlayerDefeat );	
+	Events.PlayerVictory.Remove( OnPlayerVictory );
+	Events.PlayerEraChanged.Remove( OnPlayerEraChanged );	
+	Events.CityOccupationChanged.Remove( OnCityOccupationChanged );	
+	Events.SpyMissionUpdated.Remove( OnSpyMissionUpdated );			
+	Events.UnitActivate.Remove( OnUnitActivate );
+	
 	Uninitialize();
 end
 LuaEvents.AutomationGameEnded.Add( OnAutomationGameEnded );
+
+-------------------------------------------------------------------------------
+-- New functions for AutoPlay mod
+-------------------------------------------------------------------------------
+
+function OnWonderCompleted(x, y)
+	if not bNotifications then
+		return
+	end
+	local plot = Map.GetPlot(x, y);
+	if (plot ~= nil) then
+		local pPlayer1Config = PlayerConfigurations[plot:GetOwner()]
+		local text = tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." finished a Wonder"
+		StatusMessage( text, 5, ReportingStatusTypes.DEFAULT )
+	end
+end
+
+function OnDiplomacyDeclareWar(player1, player2)
+	if not bNotifications then
+		return
+	end
+	local pPlayer1 = Players[player1]
+	local pPlayer2 = Players[player2]
+	if pPlayer1:IsMajor() and pPlayer2:IsMajor() then
+		local pPlayer1Config = PlayerConfigurations[player1]
+		local pPlayer2Config = PlayerConfigurations[player2]
+		local text = tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has declared war to "..tostring(Locale.Lookup(pPlayer2Config:GetCivilizationShortDescription()))
+		StatusMessage( text, 5, ReportingStatusTypes.DEFAULT )
+	end
+end
+function OnDiplomacyMakePeace(player1, player2)
+	if not bNotifications then
+		return
+	end
+	local pPlayer1 = Players[player1]
+	local pPlayer2 = Players[player2]
+	if pPlayer1:IsMajor() and pPlayer2:IsMajor() then
+		local pPlayer1Config = PlayerConfigurations[player1]
+		local pPlayer2Config = PlayerConfigurations[player2]
+		local text = tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has made peace with "..tostring(Locale.Lookup(pPlayer2Config:GetCivilizationShortDescription()))
+		StatusMessage( text, 5, ReportingStatusTypes.DEFAULT )
+	end
+end
+
+-------------------------------------------------------------------------------
+function OnDiplomacyRelationshipChanged(player1, player2)
+	if not bNotifications then
+		return
+	end
+	
+end
+
+-------------------------------------------------------------------------------
+function OnPlayerDefeat(player1, player2)
+	if not bNotifications then
+		return
+	end
+	--[[
+	if (IsEventEnabled("NarrationEvent_PlayerDefeated")) then
+
+		if (PlayerManager.IsValid(player2)) then
+			-- Specifically defeated by another player
+			SendPlayerPlayerNarrationMessage("LOC_AUTONARRATE_PLAYER_DEFEATED_BY", player1, player2);
+		else
+			SendPlayerNarrationMessage("LOC_AUTONARRATE_PLAYER_DEFEATED", player1);
+		end
+	end
+	--]]
+end
+
+-------------------------------------------------------------------------------
+function OnPlayerVictory(player, victoryType)
+	if not bNotifications then
+		return
+	end
+	--[[
+	if (IsEventEnabled("NarrationEvent_PlayerVictory")) then
+
+		local victoryDef = GameInfo.Victories[victoryType];
+		if (victoryDef ~= nil) then
+			-- Have specific victory text?
+			local textKey = "LOC_AUTONARRATE_PLAYER_" .. victoryDef.VictoryType;
+			if (not Locale.HasTextKey(textKey)) then
+				-- Show generic text
+				textKey = "LOC_AUTONARRATE_PLAYER_VICTORY";
+			end
+
+			local pPlayerConfig = PlayerConfigurations[player];
+			if (pPlayerConfig ~= nil) then
+				local tMessage = {};
+				tMessage.Message = Locale.Lookup(textKey, pPlayerConfig:GetCivilizationShortDescription());
+				-- Show a "done" button
+				tMessage.Button1Text = Locale.Lookup("LOC_AUTONARRATE_BUTTON_DONE");
+				-- Stop the test 
+				tMessage.Button1Func = function() 
+					Automation.Pause(false);
+					AutoplayManager.SetActive(false);	-- Stop the autoplay
+				end 
+				tMessage.ShowPortrait = true;
+
+				LuaEvents.Automation_AddToNarrationQueue( tMessage );
+
+				Automation.Pause(true);
+			end
+
+
+		end
+	end
+	--]]
+end
+
+-------------------------------------------------------------------------------
+function OnPlayerEraChanged(player, era)
+	if not bNotifications then
+		return
+	end
+	local eraDef = GameInfo.Eras[era];
+	if (eraDef ~= nil) then
+		if (eraDef.Hash ~= GameConfiguration.GetStartEra()) then
+			-- Have specific era text?
+			local textKey = "LOC_AUTONARRATE_PLAYER_" .. eraDef.EraType;
+			if (Locale.HasTextKey(textKey)) then
+				--SendPlayerNarrationMessage(textKey, player);
+			else
+				-- Show generic text
+				--SendPlayerNarrationMessage("LOC_AUTONARRATE_PLAYER_ERA_CHANGED", player);
+			end
+		end
+	end
+end
+
+-------------------------------------------------------------------------------
+function OnCityOccupationChanged(player, cityID)
+	if not bNotifications then
+		return
+	end
+
+end
+
+-------------------------------------------------------------------------------
+function OnSpyMissionUpdated()
+	if not bNotifications then
+		return
+	end
+
+end
+
+function OnUnitActivate(owner, unitID, x, y, eReason, bVisibleToLocalPlayer)
+	if not bNotifications then
+		return
+	end
+	if (eReason == EventSubTypes.FOUND_CITY) and turnFromStart > 1 then
+		local pPlayer1Config = PlayerConfigurations[owner]
+		local text = tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has founded a new city"
+		StatusMessage( text, 5, ReportingStatusTypes.DEFAULT )
+	end
+end
 
 local bIsHide = true
 function OnInputHandler( pInputStruct:table )
@@ -731,12 +943,51 @@ function OnInputHandler( pInputStruct:table )
 			
 			end
 			StatusMessage( "Show UI = " .. tostring(not bIsHide), 2, ReportingStatusTypes.DEFAULT )
+			
 		elseif pInputStruct:GetKey() == Keys.I then
-			bAllowStart = not bAllowStart
-			StatusMessage( "Auto Camera = " .. tostring(bAllowStart), 2, ReportingStatusTypes.DEFAULT )
+			bAutoCamera = not bAutoCamera
+			StatusMessage( "Auto Camera = " .. tostring(bAutoCamera), 2, ReportingStatusTypes.DEFAULT )
+			
+		elseif pInputStruct:GetKey() == Keys.H then
+			local strAutoCam = "Auto Camera = ".. tostring(bAutoCamera).." (press I to toggle)";
+			local strShowUI = "Show UI = ".. tostring(not bIsHide).." (press U to toggle)";
+			StatusMessage( strAutoCam, 5, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strShowUI, 5, ReportingStatusTypes.DEFAULT )
+			
+			local strStopAP = "Autoplay = ".. tostring(AutoplayManager.IsActive()).." (press Shift+A to toggle)";
+			StatusMessage( strStopAP, 5, ReportingStatusTypes.DEFAULT )
+			
+			local strAutoWar = "Auto Declare War = ".. tostring(bAllWar).." (press Shift+W to toggle)";
+			StatusMessage( strAutoWar, 5, ReportingStatusTypes.DEFAULT )
+			
+			local strNotifications = "Display Notifications = ".. tostring(bNotifications).." (press Shift+N to toggle)";
+			StatusMessage( strNotifications, 5, ReportingStatusTypes.DEFAULT )
+			
+		elseif pInputStruct:GetKey() == Keys.A and pInputStruct:IsShiftDown() then
+			if AutoplayManager.IsActive() then				
+				AutoplayManager.SetTurns(0)
+				AutoplayManager.SetReturnAsPlayer( 0 )
+				AutoplayManager.SetActive(false)
+				LuaEvents.AutomationGameEnded()
+				StatusMessage( "Autoplay marked for deactivation, please wait for new turn...", 10, ReportingStatusTypes.DEFAULT )
+			else				
+				AutoplayManager.SetTurns(-1)
+				AutoplayManager.SetObserveAsPlayer( tonumber(PlayerTypes.OBSERVER) )
+				AutoplayManager.SetActive(true)
+				LuaEvents.AutomationGameStarted()
+				StatusMessage( "Autoplay reactivated...", 5, ReportingStatusTypes.DEFAULT )
+			end			
+		
+		elseif pInputStruct:GetKey() == Keys.W and pInputStruct:IsShiftDown() then
+			bAllWar = not bAllWar
+			StatusMessage( "Auto Declare War = " .. tostring(bAllWar), 2, ReportingStatusTypes.DEFAULT )
+			
+		elseif pInputStruct:GetKey() == Keys.N and pInputStruct:IsShiftDown() then
+			bNotifications = not bNotifications
+			StatusMessage( "Display Notifications = " .. tostring(bNotifications), 2, ReportingStatusTypes.DEFAULT )
 		end
 		
-		
+		-- pInputStruct:IsShiftDown() and pInputStruct:IsAltDown()
 	end
 	return false;
 end
@@ -749,15 +1000,33 @@ function StartAutoPlay()
 	AutoplayManager.SetActive(true)
 	
 	LuaEvents.AutomationGameStarted()
-	StatusMessage( "Starting Autoplay", 5, ReportingStatusTypes.DEFAULT )
+	StatusMessage( "Starting Autoplay, please wait...", 5, ReportingStatusTypes.DEFAULT )
+	StatusMessage( "(press H for Autoplay Help)", 5, ReportingStatusTypes.DEFAULT )
 end
 Events.LoadScreenClose.Add( StartAutoPlay )
 
+local displayHelpCounter = 0
 function NewTurn()
-	local strTurn	:string = tostring( Game.GetCurrentGameTurn() );
+	turnFromStart = turnFromStart + 1
+	
+	-- get time
+	local format = UserConfiguration.GetClockFormat()	
+	local strTime	
+	if(format == 1) then
+		strTime = os.date("%H:%M")
+	else
+		strTime = os.date("%#I:%M %p")
+	end
+	
+	local strTurn :string = tostring( Game.GetCurrentGameTurn() );
 	local strDate :string = Calendar.MakeYearStr(Game.GetCurrentGameTurn(), GameConfiguration.GetCalendarType(), GameConfiguration.GetGameSpeedType(), false);
-	local strNewTurn = "Turn : " .. strTurn .. " | Date : " .. strDate .. "[NEWLINE]Auto Camera = ".. tostring(bAllowStart).." (press I to toggle)" .. "[NEWLINE]Show UI = ".. tostring(not bIsHide).." (press U to toggle)";
+	local strNewTurn = "Turn " .. strTurn .. " : " .. strDate .. " : " .. strTime;
 	StatusMessage( strNewTurn, 5, ReportingStatusTypes.DEFAULT )
+	displayHelpCounter = displayHelpCounter + 1
+	if displayHelpCounter > 9 then
+		displayHelpCounter = 0		
+		StatusMessage( "(press H for Autoplay Help)", 3, ReportingStatusTypes.DEFAULT )
+	end
 end
 Events.TurnBegin.Add(NewTurn)
 
@@ -770,6 +1039,10 @@ function CheckToStopAutoPlay()
 end
 --Events.PlayerTurnActivated.Add( CheckToStopAutoPlay );
 
+
+-------------------------------------------------------------------------------
+-- from StatusMessagePanel.lua
+-------------------------------------------------------------------------------
 -- =========================================================================== 
 -- Status Message Manager
 -- Non-interactive messages that appear in the upper-center of the screen.
