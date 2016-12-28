@@ -548,7 +548,7 @@ Events.PlayerTurnActivated.Add( OnPlayerTurnActivated );
 -------------------------------------------------------------------------------
 function OnCombatVisBegin(combatMembers)
 
-	local defender = combatMembers[2];
+	local defender = combatMembers[CombatVisType.DEFENDER];
 	local bCityAttacked = defender.componentType == ComponentType.CITY	
 	
 	if (bCityAttacked or CurrentActivity.started == false or CurrentActivity.type ~= VisitActivity.Combat or CurrentActivity.lingering == true) then	-- Don't interrupt looking at some other combat, unless we are in the 'linger' time
@@ -568,9 +568,9 @@ function OnCombatVisBegin(combatMembers)
 					CurrentActivity.y = pUnit:GetY();
 					
 					if bCityAttacked then
+						StatusMessage( "BREAKING NEWS : A city is attacked !!!", 3, ReportingStatusTypes.DEFAULT )
 						local pCity = CityManager.GetCity(defender.playerID, defender.componentID);
-						if (pCity ~= nil) then
-							StatusMessage( "BREAKING NEWS : A city is attacked !!!", 3, ReportingStatusTypes.DEFAULT )
+						if (pCity ~= nil) then							
 							CurrentActivity.x = pCity:GetX()
 							CurrentActivity.y = pCity:GetY();
 						end
@@ -783,7 +783,7 @@ function OnDiplomacyDeclareWar(player1, player2)
 		local pPlayer1Config = PlayerConfigurations[player1]
 		local pPlayer2Config = PlayerConfigurations[player2]
 		local text = tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has declared war to "..tostring(Locale.Lookup(pPlayer2Config:GetCivilizationShortDescription()))
-		StatusMessage( text, 5, ReportingStatusTypes.DEFAULT )
+		StatusMessage( text, 10, ReportingStatusTypes.DEFAULT )
 	end
 end
 function OnDiplomacyMakePeace(player1, player2)
@@ -796,7 +796,7 @@ function OnDiplomacyMakePeace(player1, player2)
 		local pPlayer1Config = PlayerConfigurations[player1]
 		local pPlayer2Config = PlayerConfigurations[player2]
 		local text = tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has made peace with "..tostring(Locale.Lookup(pPlayer2Config:GetCivilizationShortDescription()))
-		StatusMessage( text, 5, ReportingStatusTypes.DEFAULT )
+		StatusMessage( text, 10, ReportingStatusTypes.DEFAULT )
 	end
 end
 
@@ -963,6 +963,9 @@ function OnInputHandler( pInputStruct:table )
 			local strNotifications = "Display Notifications = ".. tostring(bNotifications).." (press Shift+N to toggle)";
 			StatusMessage( strNotifications, 5, ReportingStatusTypes.DEFAULT )
 			
+			local strQuick = "Quick Movement / Combat = ".. tostring(UserConfiguration.GetValue("QuickMovement") == 1).." (press Q to toggle)";
+			StatusMessage( strQuick, 5, ReportingStatusTypes.DEFAULT )
+			
 		elseif pInputStruct:GetKey() == Keys.A and pInputStruct:IsShiftDown() then
 			if AutoplayManager.IsActive() then				
 				AutoplayManager.SetTurns(0)
@@ -975,7 +978,7 @@ function OnInputHandler( pInputStruct:table )
 				AutoplayManager.SetObserveAsPlayer( tonumber(PlayerTypes.OBSERVER) )
 				AutoplayManager.SetActive(true)
 				LuaEvents.AutomationGameStarted()
-				StatusMessage( "Autoplay reactivated...", 5, ReportingStatusTypes.DEFAULT )
+				StatusMessage( "Starting Autoplay, please wait...", 5, ReportingStatusTypes.DEFAULT )
 			end			
 		
 		elseif pInputStruct:GetKey() == Keys.W and pInputStruct:IsShiftDown() then
@@ -984,7 +987,20 @@ function OnInputHandler( pInputStruct:table )
 			
 		elseif pInputStruct:GetKey() == Keys.N and pInputStruct:IsShiftDown() then
 			bNotifications = not bNotifications
-			StatusMessage( "Display Notifications = " .. tostring(bNotifications), 2, ReportingStatusTypes.DEFAULT )
+			StatusMessage( "Display Notifications = " .. tostring(bNotifications), 2, ReportingStatusTypes.DEFAULT )			
+			
+		elseif pInputStruct:GetKey() == Keys.Q then
+			local bQuick = false
+			if UserConfiguration.GetValue("QuickMovement") == 0 then -- was OFF, set ON
+				UserConfiguration.SetValue("QuickMovement", 1)
+				UserConfiguration.SetValue("QuickCombat", 1)
+				bQuick = true
+			else
+				UserConfiguration.SetValue("QuickMovement", 0)
+				UserConfiguration.SetValue("QuickCombat", 0)
+			end
+			StatusMessage( "Quick Movement / Combat = " .. tostring(bQuick), 2, ReportingStatusTypes.DEFAULT )
+			
 		end
 		
 		-- pInputStruct:IsShiftDown() and pInputStruct:IsAltDown()
@@ -993,7 +1009,6 @@ function OnInputHandler( pInputStruct:table )
 end
 
 function StartAutoPlay()
-	ContextPtr:SetInputHandler( OnInputHandler, true )
 	AutoplayManager.SetTurns(-1)
 	AutoplayManager.SetReturnAsPlayer( 0 )
 	AutoplayManager.SetObserveAsPlayer( tonumber(PlayerTypes.OBSERVER) )
@@ -1004,6 +1019,7 @@ function StartAutoPlay()
 	StatusMessage( "(press H for Autoplay Help)", 5, ReportingStatusTypes.DEFAULT )
 end
 Events.LoadScreenClose.Add( StartAutoPlay )
+ContextPtr:SetInputHandler( OnInputHandler, true )
 
 local displayHelpCounter = 0
 function NewTurn()
