@@ -782,7 +782,7 @@ function OnDiplomacyDeclareWar(player1, player2)
 	if pPlayer1:IsMajor() and pPlayer2:IsMajor() then
 		local pPlayer1Config = PlayerConfigurations[player1]
 		local pPlayer2Config = PlayerConfigurations[player2]
-		local text = tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has declared war to "..tostring(Locale.Lookup(pPlayer2Config:GetCivilizationShortDescription()))
+		local text = "[ICON_JOINT_WAR] " .. tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has declared war to "..tostring(Locale.Lookup(pPlayer2Config:GetCivilizationShortDescription())) .. " [ICON_JOINT_WAR]" 
 		StatusMessage( text, 10, ReportingStatusTypes.DEFAULT )
 	end
 end
@@ -795,7 +795,7 @@ function OnDiplomacyMakePeace(player1, player2)
 	if pPlayer1:IsMajor() and pPlayer2:IsMajor() then
 		local pPlayer1Config = PlayerConfigurations[player1]
 		local pPlayer2Config = PlayerConfigurations[player2]
-		local text = tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has made peace with "..tostring(Locale.Lookup(pPlayer2Config:GetCivilizationShortDescription()))
+		local text = "[ICON_MAKE_PEACE] " .. tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription())).." has made peace with "..tostring(Locale.Lookup(pPlayer2Config:GetCivilizationShortDescription())) .. " [ICON_MAKE_PEACE]" 
 		StatusMessage( text, 10, ReportingStatusTypes.DEFAULT )
 	end
 end
