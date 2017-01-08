@@ -11,6 +11,15 @@ include( "InstanceManager" );
 local turnFromStart = 0
 local bAllWar = false
 local bNotifications = true
+local bAutoStart = GameConfiguration.GetValue("AutoStart");
+
+local iTimerSessionStart = 0
+local tTimerPlayerStart = {}
+local tTimerPlayerEnd = {}
+local fTimerTurnStart = 0
+local fTimerTurnEnd = 0
+local bTurnTimer = true
+local bPlayerTimer = false
 
 hstructure Entry
 	hasVisited : boolean;
@@ -483,6 +492,9 @@ function OnPlayerTurnActivated( player, bFirstTime )
 	
 	if (bFirstTime) then
 	
+		-- Update timer
+		tTimerPlayerStart[player] = Automation.GetTime()
+	
 		-- Look at their capital
 		-- The player turn can change quickly, so see if we want to interrupt the current activity.  Do so only if we have been doing it for a while.
 		if (CurrentActivity.started == false or CurrentActivity.type ~= VisitActivity.Combat or CurrentActivity.lingering == true) then	-- Don't interrupt looking at some combat, unless we are in the 'linger' time
@@ -713,17 +725,17 @@ function OnAutomationGameStarted()
 	ContextPtr:LookUpControl("/InGame/WorldViewIconsManager"):SetHide(true)
 	ContextPtr:LookUpControl("/InGame/WorldViewPlotMessages"):SetHide(true)
 	
-	Events.WonderCompleted.Add( OnWonderCompleted );
-	Events.DiplomacyDeclareWar.Add( OnDiplomacyDeclareWar );
-	Events.DiplomacyMakePeace.Add( OnDiplomacyMakePeace );	
-	Events.DiplomacyRelationshipChanged.Add( OnDiplomacyRelationshipChanged );	
-	Events.PlayerDefeat.Add( OnPlayerDefeat );	
-	Events.PlayerVictory.Add( OnPlayerVictory );
-	Events.PlayerEraChanged.Add( OnPlayerEraChanged );	
-	Events.CityOccupationChanged.Add( OnCityOccupationChanged );	
-	Events.SpyMissionUpdated.Add( OnSpyMissionUpdated );			
-	Events.UnitActivate.Add( OnUnitActivate );
-	
+	Events.WonderCompleted.Add( OnWonderCompleted )
+	Events.DiplomacyDeclareWar.Add( OnDiplomacyDeclareWar )
+	Events.DiplomacyMakePeace.Add( OnDiplomacyMakePeace )
+	Events.DiplomacyRelationshipChanged.Add( OnDiplomacyRelationshipChanged )
+	Events.PlayerDefeat.Add( OnPlayerDefeat )
+	Events.PlayerVictory.Add( OnPlayerVictory )
+	Events.PlayerEraChanged.Add( OnPlayerEraChanged )
+	Events.CityOccupationChanged.Add( OnCityOccupationChanged )	
+	Events.SpyMissionUpdated.Add( OnSpyMissionUpdated )		
+	Events.UnitActivate.Add( OnUnitActivate )	
+
 	Initialize();
 end
 
@@ -742,16 +754,16 @@ function OnAutomationGameEnded()
 	ContextPtr:LookUpControl("/InGame/WorldViewIconsManager"):SetHide(false)
 	ContextPtr:LookUpControl("/InGame/WorldViewPlotMessages"):SetHide(false)
 	
-	Events.WonderCompleted.Remove( OnWonderCompleted );
-	Events.DiplomacyDeclareWar.Remove( OnDiplomacyDeclareWar );
-	Events.DiplomacyMakePeace.Remove( OnDiplomacyMakePeace );	
-	Events.DiplomacyRelationshipChanged.Remove( OnDiplomacyRelationshipChanged );	
-	Events.PlayerDefeat.Remove( OnPlayerDefeat );	
-	Events.PlayerVictory.Remove( OnPlayerVictory );
-	Events.PlayerEraChanged.Remove( OnPlayerEraChanged );	
-	Events.CityOccupationChanged.Remove( OnCityOccupationChanged );	
-	Events.SpyMissionUpdated.Remove( OnSpyMissionUpdated );			
-	Events.UnitActivate.Remove( OnUnitActivate );
+	Events.WonderCompleted.Remove( OnWonderCompleted )
+	Events.DiplomacyDeclareWar.Remove( OnDiplomacyDeclareWar )
+	Events.DiplomacyMakePeace.Remove( OnDiplomacyMakePeace )
+	Events.DiplomacyRelationshipChanged.Remove( OnDiplomacyRelationshipChanged )
+	Events.PlayerDefeat.Remove( OnPlayerDefeat )
+	Events.PlayerVictory.Remove( OnPlayerVictory )
+	Events.PlayerEraChanged.Remove( OnPlayerEraChanged )
+	Events.CityOccupationChanged.Remove( OnCityOccupationChanged )
+	Events.SpyMissionUpdated.Remove( OnSpyMissionUpdated )
+	Events.UnitActivate.Remove( OnUnitActivate )	
 	
 	Uninitialize();
 end
@@ -760,6 +772,38 @@ LuaEvents.AutomationGameEnded.Add( OnAutomationGameEnded );
 -------------------------------------------------------------------------------
 -- New functions for AutoPlay mod
 -------------------------------------------------------------------------------
+
+function TimerOnTurnEnd()
+	-- Update timer
+	fTimerTurnEnd = Automation.GetTime()
+	if bTurnTimer then
+		local turnTime = (fTimerTurnEnd - fTimerTurnStart)
+		
+		local totalTime = os.difftime(os.time(), iTimerSessionStart)
+	    hours = string.format("%02.f", math.floor(totalTime/3600))
+		minutes = string.format("%02.f", math.floor(totalTime/60 - (hours*60)))
+		seconds = string.format("%02.f", math.floor(totalTime - hours*3600 - minutes *60))
+		
+		local text = "Total Turn time = ".. tostring(turnTime) .." seconds"
+		StatusMessage( text, 5, ReportingStatusTypes.DEFAULT )
+		
+		local text = hours.."h "..minutes.."mn "..seconds.."sec since session start"
+		StatusMessage( text, 5, ReportingStatusTypes.DEFAULT )	
+	end
+end
+Events.TurnEnd.Add( TimerOnTurnEnd )
+
+function TimerOnPlayerTurnDeactivated(iPlayer)
+	-- Update timer
+	tTimerPlayerEnd[iPlayer] = Automation.GetTime()
+	if bPlayerTimer then
+		local pPlayer1Config = PlayerConfigurations[iPlayer]
+		local turnTime = tTimerPlayerEnd[iPlayer] - tTimerPlayerStart[iPlayer]
+		local text = "Turn time = ".. tostring(turnTime) .." seconds for ".. tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription()))
+		StatusMessage( text, 2, ReportingStatusTypes.DEFAULT )	
+	end
+end
+Events.PlayerTurnDeactivated.Add( TimerOnPlayerTurnDeactivated )
 
 function OnWonderCompleted(x, y)
 	if not bNotifications then
@@ -955,16 +999,25 @@ function OnInputHandler( pInputStruct:table )
 			StatusMessage( strShowUI, 5, ReportingStatusTypes.DEFAULT )
 			
 			local strStopAP = "Autoplay = ".. tostring(AutoplayManager.IsActive()).." (press Shift+A to toggle)";
-			StatusMessage( strStopAP, 5, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strStopAP, 6, ReportingStatusTypes.DEFAULT )
 			
 			local strAutoWar = "Auto Declare War = ".. tostring(bAllWar).." (press Shift+W to toggle)";
-			StatusMessage( strAutoWar, 5, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strAutoWar, 7, ReportingStatusTypes.DEFAULT )
 			
 			local strNotifications = "Display Notifications = ".. tostring(bNotifications).." (press Shift+N to toggle)";
-			StatusMessage( strNotifications, 5, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strNotifications, 8, ReportingStatusTypes.DEFAULT )
 			
 			local strQuick = "Quick Movement / Combat = ".. tostring(UserConfiguration.GetValue("QuickMovement") == 1).." (press Q to toggle)";
-			StatusMessage( strQuick, 5, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strQuick, 9, ReportingStatusTypes.DEFAULT )
+			
+			local strAutoEnd = "Auto End Turn = ".. tostring(UserConfiguration.GetValue("AutoEndTurn") == 1).." (press Shift+E to toggle)";
+			StatusMessage( strAutoEnd, 10, ReportingStatusTypes.DEFAULT )
+			
+			local strTimer = "Show Turn Time = ".. tostring(bTurnTimer).." (press Shift+T to toggle)";
+			StatusMessage( strTimer, 11, ReportingStatusTypes.DEFAULT )
+			
+			local strTimer = "Show players Time = ".. tostring(bPlayerTimer).." (press Alt+T to toggle)";
+			StatusMessage( strTimer, 12, ReportingStatusTypes.DEFAULT )
 			
 		elseif pInputStruct:GetKey() == Keys.A and pInputStruct:IsShiftDown() then
 			if AutoplayManager.IsActive() then				
@@ -1000,6 +1053,24 @@ function OnInputHandler( pInputStruct:table )
 				UserConfiguration.SetValue("QuickCombat", 0)
 			end
 			StatusMessage( "Quick Movement / Combat = " .. tostring(bQuick), 2, ReportingStatusTypes.DEFAULT )
+		
+		elseif pInputStruct:GetKey() == Keys.E and pInputStruct:IsShiftDown()  then	
+			local bAutoEnd = false
+			if UserConfiguration.GetValue("AutoEndTurn") == 0 then -- was OFF, set ON
+				UserConfiguration.SetValue("AutoEndTurn", 1)
+				bAutoEnd = true
+			else
+				UserConfiguration.SetValue("AutoEndTurn", 0)
+			end
+			StatusMessage( "Auto End Turn = " .. tostring(bAutoEnd), 2, ReportingStatusTypes.DEFAULT )
+		
+		elseif pInputStruct:GetKey() == Keys.T and pInputStruct:IsShiftDown() then
+			bTurnTimer = not bTurnTimer
+			StatusMessage( "Show Turn Time = " .. tostring(bTurnTimer), 2, ReportingStatusTypes.DEFAULT )
+			
+		elseif pInputStruct:GetKey() == Keys.T and pInputStruct:IsAltDown() then
+			bPlayerTimer = not bPlayerTimer
+			StatusMessage( "Show Players Time = " .. tostring(bPlayerTimer), 2, ReportingStatusTypes.DEFAULT )
 			
 		end
 		
@@ -1009,13 +1080,20 @@ function OnInputHandler( pInputStruct:table )
 end
 
 function StartAutoPlay()
-	AutoplayManager.SetTurns(-1)
-	AutoplayManager.SetReturnAsPlayer( 0 )
-	AutoplayManager.SetObserveAsPlayer( tonumber(PlayerTypes.OBSERVER) )
-	AutoplayManager.SetActive(true)
+
+	-- Initialise timer
+	iTimerSessionStart = os.time()
+
+	if bAutoStart then
+		AutoplayManager.SetTurns(-1)
+		AutoplayManager.SetReturnAsPlayer( 0 )
+		AutoplayManager.SetObserveAsPlayer( tonumber(PlayerTypes.OBSERVER) )
+		AutoplayManager.SetActive(true)
+		
+		LuaEvents.AutomationGameStarted()
+		StatusMessage( "Starting Autoplay, please wait...", 5, ReportingStatusTypes.DEFAULT )
+	end
 	
-	LuaEvents.AutomationGameStarted()
-	StatusMessage( "Starting Autoplay, please wait...", 5, ReportingStatusTypes.DEFAULT )
 	StatusMessage( "(press H for Autoplay Help)", 5, ReportingStatusTypes.DEFAULT )
 end
 Events.LoadScreenClose.Add( StartAutoPlay )
@@ -1025,18 +1103,13 @@ local displayHelpCounter = 0
 function NewTurn()
 	turnFromStart = turnFromStart + 1
 	
-	-- get time
-	local format = UserConfiguration.GetClockFormat()	
-	local strTime	
-	if(format == 1) then
-		strTime = os.date("%H:%M")
-	else
-		strTime = os.date("%#I:%M %p")
-	end
+	-- update timer
+	fTimerTurnStart = Automation.GetTime()
 	
+	-- show new turn summary
 	local strTurn :string = tostring( Game.GetCurrentGameTurn() );
 	local strDate :string = Calendar.MakeYearStr(Game.GetCurrentGameTurn(), GameConfiguration.GetCalendarType(), GameConfiguration.GetGameSpeedType(), false);
-	local strNewTurn = "Turn " .. strTurn .. " : " .. strDate .. " : " .. strTime;
+	local strNewTurn = "Turn " .. strTurn .. " : " .. strDate
 	StatusMessage( strNewTurn, 5, ReportingStatusTypes.DEFAULT )
 	displayHelpCounter = displayHelpCounter + 1
 	if displayHelpCounter > 9 then
@@ -1045,16 +1118,6 @@ function NewTurn()
 	end
 end
 Events.TurnBegin.Add(NewTurn)
-
-function CheckToStopAutoPlay()
-	if not AutoplayManager.IsActive() then -- automation deactivated from the tuner maybe
-		-- remove autoplay
-		LuaEvents.AutomationGameEnded()
-		Events.TurnBegin.Remove(NewTurn)
-	end
-end
---Events.PlayerTurnActivated.Add( CheckToStopAutoPlay );
-
 
 -------------------------------------------------------------------------------
 -- from StatusMessagePanel.lua

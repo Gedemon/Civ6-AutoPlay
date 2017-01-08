@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GameData>
+  <LocalizedText>
+    
+	<Replace Tag="LOC_GAME_AUTO_START" Language="en_US">
+      <Text>Start in Auto play mode</Text>
+    </Replace>
+	
+  </LocalizedText>
+</GameData>

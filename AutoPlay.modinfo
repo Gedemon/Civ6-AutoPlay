@@ -7,10 +7,19 @@
     <Description>LOC_AUTOPLAY_DESCRIPTION</Description>
     <Authors>Firaxis, Gedemon</Authors>
   </Properties>
-  <Dependencies />
-  <References />
-  <Blocks />  
-  <Settings />	
+
+  	<Settings>
+		<Custom id="AutoPlaySettings">
+			<Items>
+				<File>Config.xml</File>
+			</Items>
+		</Custom>
+		<LocalizedText id="AutoPlaySettings">
+			<Items>
+				<File>ConfigText.xml</File>
+			</Items>
+		</LocalizedText>
+	</Settings>	
   
 	<Components>
 		<UserInterface>		
@@ -38,5 +47,7 @@
 	<Files>
 		<File>AutoPlay_InGame.xml</File>
 		<File>AutoPlay_InGame.lua</File>
+		<File>Config.xml</File>
+		<File>ConfigText.xml</File>
 	</Files>
 </Mod>
