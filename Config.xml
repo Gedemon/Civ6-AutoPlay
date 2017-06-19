@@ -2,7 +2,6 @@
 <GameInfo>
 
 	<Parameters>
-		<!--	Some Settings where linked to "RULESET_STANDARD", make them available with all		-->
 		<Row ParameterId="AutoStart" Name="LOC_GAME_AUTO_START" Description="" Domain="bool" DefaultValue="1" ConfigurationGroup="Game" ConfigurationId="AutoStart" GroupId="AdvancedOptions" SortIndex="2050"/>
 	</Parameters>	
 

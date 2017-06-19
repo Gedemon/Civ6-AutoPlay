@@ -18,8 +18,10 @@ local tTimerPlayerStart = {}
 local tTimerPlayerEnd = {}
 local fTimerTurnStart = 0
 local fTimerTurnEnd = 0
-local bTurnTimer = true
+local bTurnTimer = false
 local bPlayerTimer = false
+
+local tStats = {}
 
 hstructure Entry
 	hasVisited : boolean;
@@ -42,8 +44,8 @@ local ms_CurrentViewType = VIEW_TYPE_NONE;
 local ms_AllowViewSwitching = true;
 
 -- View durations.  Make these automation parameters
-ms_ViewDurationMin = { 30, 30 };
-ms_ViewDurationMax = { 60, 60 };
+ms_ViewDurationMin = { 45, 45 };
+ms_ViewDurationMax = { 90, 90 };
 
 -- Chances that when the players turn starts, we look at their capital, 0 - 1
 -- Make these automation parameters
@@ -1021,17 +1023,9 @@ function OnInputHandler( pInputStruct:table )
 			
 		elseif pInputStruct:GetKey() == Keys.A and pInputStruct:IsShiftDown() then
 			if AutoplayManager.IsActive() then				
-				AutoplayManager.SetTurns(0)
-				AutoplayManager.SetReturnAsPlayer( 0 )
-				AutoplayManager.SetActive(false)
-				LuaEvents.AutomationGameEnded()
-				StatusMessage( "Autoplay marked for deactivation, please wait for new turn...", 10, ReportingStatusTypes.DEFAULT )
+				StopAuToPlay()
 			else				
-				AutoplayManager.SetTurns(-1)
-				AutoplayManager.SetObserveAsPlayer( tonumber(PlayerTypes.OBSERVER) )
-				AutoplayManager.SetActive(true)
-				LuaEvents.AutomationGameStarted()
-				StatusMessage( "Starting Autoplay, please wait...", 5, ReportingStatusTypes.DEFAULT )
+				StartAutoPlay()
 			end			
 		
 		elseif pInputStruct:GetKey() == Keys.W and pInputStruct:IsShiftDown() then
@@ -1078,26 +1072,45 @@ function OnInputHandler( pInputStruct:table )
 	end
 	return false;
 end
+ContextPtr:SetInputHandler( OnInputHandler, true )
 
-function StartAutoPlay()
+function OnLoadScreenClose()
 
 	-- Initialise timer
 	iTimerSessionStart = os.time()
 
-	if bAutoStart then
-		AutoplayManager.SetTurns(-1)
-		AutoplayManager.SetReturnAsPlayer( 0 )
-		AutoplayManager.SetObserveAsPlayer( tonumber(PlayerTypes.OBSERVER) )
-		AutoplayManager.SetActive(true)
-		
-		LuaEvents.AutomationGameStarted()
-		StatusMessage( "Starting Autoplay, please wait...", 5, ReportingStatusTypes.DEFAULT )
+	if bAutoStart and not (Game.GetCurrentGameTurn() > GameConfiguration.GetStartTurn()) then
+		StartAutoPlay()
+	else
+		StopAuToPlay()
 	end
 	
 	StatusMessage( "(press H for Autoplay Help)", 5, ReportingStatusTypes.DEFAULT )
 end
-Events.LoadScreenClose.Add( StartAutoPlay )
-ContextPtr:SetInputHandler( OnInputHandler, true )
+Events.LoadScreenClose.Add( OnLoadScreenClose )
+
+function StartAutoPlay()
+	if not AutoplayManager.IsActive() then	
+		AutoplayManager.SetTurns(-1)
+		AutoplayManager.SetReturnAsPlayer( 0 )
+		AutoplayManager.SetObserveAsPlayer( tonumber(PlayerTypes.OBSERVER) )
+		AutoplayManager.SetActive(true)		
+		LuaEvents.AutomationGameStarted()
+		StatusMessage( "Starting Autoplay, please wait...", 5, ReportingStatusTypes.DEFAULT )
+	end
+end
+LuaEvents.StartAuToPlay.Add(StartAutoPlay)
+
+function StopAuToPlay()
+	if AutoplayManager.IsActive() then				
+		AutoplayManager.SetTurns(0)
+		AutoplayManager.SetReturnAsPlayer( 0 )
+		AutoplayManager.SetActive(false)
+		LuaEvents.AutomationGameEnded()
+		StatusMessage( "Autoplay marked for deactivation, please wait for new turn...", 10, ReportingStatusTypes.DEFAULT )
+	end
+end
+LuaEvents.StopAuToPlay.Add(StopAuToPlay)
 
 local displayHelpCounter = 0
 function NewTurn()

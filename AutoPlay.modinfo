@@ -1,12 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Mod id="669be1ba-7530-419d-8246-d3863628dfe8" version="1">
-  <Properties>
-    <Name>LOC_AUTOPLAY_TITLE</Name>
-    <Stability>Beta</Stability>
-    <Teaser>LOC_AUTOPLAY_TEASER</Teaser>
-    <Description>LOC_AUTOPLAY_DESCRIPTION</Description>
-    <Authors>Firaxis, Gedemon</Authors>
-  </Properties>
+<Properties>
+	<Name>LOC_AUTOPLAY_TITLE</Name>
+	<Stability>Beta</Stability>
+	<Teaser>LOC_AUTOPLAY_TEASER</Teaser>
+	<Description>LOC_AUTOPLAY_DESCRIPTION</Description>
+	<Authors>Firaxis, Gedemon</Authors>
+	<EnabledByDefault>0</EnabledByDefault>
+	<EnabledAtStartup>0</EnabledAtStartup>
+</Properties>
 
   	<Settings>
 		<Custom id="AutoPlaySettings">
