@@ -8,18 +8,18 @@ print("Loading AutoPlay_InGame.lua ...")
 
 include( "InstanceManager" );
 
-local turnFromStart = 0
-local bAllWar = false
-local bNotifications = true
-local bAutoStart = GameConfiguration.GetValue("AutoStart");
-
-local iTimerSessionStart = 0
-local tTimerPlayerStart = {}
-local tTimerPlayerEnd = {}
-local fTimerTurnStart = 0
-local fTimerTurnEnd = 0
-local bTurnTimer = false
-local bPlayerTimer = false
+local turnFromStart			= 0
+local bAllWar				= false
+local bNotifications		= true
+local bSilentMode			= false
+local bAutoStart 			= GameConfiguration.GetValue("AutoStart");
+local iTimerSessionStart	= 0
+local tTimerPlayerStart		= {}
+local tTimerPlayerEnd		= {}
+local fTimerTurnStart		= 0
+local fTimerTurnEnd			= 0
+local bTurnTimer			= false
+local bPlayerTimer			= false
 
 local tStats = {}
 
@@ -488,6 +488,7 @@ Events.CityVisibilityChanged.Add( OnCityVisibilityChanged );
 
 -------------------------------------------------------------------------------
 -- A players turn has started
+local iPreviousActivePlayer
 function OnPlayerTurnActivated( player, bFirstTime )
 	local pPlayer = Players[player]
 
@@ -495,7 +496,18 @@ function OnPlayerTurnActivated( player, bFirstTime )
 	if (bFirstTime) then
 	
 		-- Update timer
-		tTimerPlayerStart[player] = Automation.GetTime()
+		if iPreviousActivePlayer and tTimerPlayerStart[iPreviousActivePlayer] then
+			tTimerPlayerEnd[iPreviousActivePlayer] = Automation.GetTime()
+			if bPlayerTimer then
+				local pPlayer1Config = PlayerConfigurations[iPreviousActivePlayer]
+				local turnTime = tTimerPlayerEnd[iPreviousActivePlayer] - tTimerPlayerStart[iPreviousActivePlayer]
+				local text = "Turn time = ".. tostring(turnTime) .." seconds for ".. tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription()))
+				StatusMessage( text, 2, ReportingStatusTypes.DEFAULT )
+			end
+		end
+		
+		tTimerPlayerStart[player]	= Automation.GetTime()
+		iPreviousActivePlayer		= player
 	
 		-- Look at their capital
 		-- The player turn can change quickly, so see if we want to interrupt the current activity.  Do so only if we have been doing it for a while.
@@ -802,10 +814,10 @@ function TimerOnPlayerTurnDeactivated(iPlayer)
 		local pPlayer1Config = PlayerConfigurations[iPlayer]
 		local turnTime = tTimerPlayerEnd[iPlayer] - tTimerPlayerStart[iPlayer]
 		local text = "Turn time = ".. tostring(turnTime) .." seconds for ".. tostring(Locale.Lookup(pPlayer1Config:GetCivilizationShortDescription()))
-		StatusMessage( text, 2, ReportingStatusTypes.DEFAULT )	
+		StatusMessage( text, 2, ReportingStatusTypes.DEFAULT )
 	end
 end
-Events.PlayerTurnDeactivated.Add( TimerOnPlayerTurnDeactivated )
+--Events.PlayerTurnDeactivated.Add( TimerOnPlayerTurnDeactivated )
 
 function OnWonderCompleted(x, y)
 	if not bNotifications then
@@ -995,31 +1007,36 @@ function OnInputHandler( pInputStruct:table )
 			StatusMessage( "Auto Camera = " .. tostring(bAutoCamera), 2, ReportingStatusTypes.DEFAULT )
 			
 		elseif pInputStruct:GetKey() == Keys.H then
+			local bForceDisplay = true
+			
 			local strAutoCam = "Auto Camera = ".. tostring(bAutoCamera).." (press I to toggle)";
 			local strShowUI = "Show UI = ".. tostring(not bIsHide).." (press U to toggle)";
-			StatusMessage( strAutoCam, 5, ReportingStatusTypes.DEFAULT )
-			StatusMessage( strShowUI, 5, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strAutoCam, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
+			StatusMessage( strShowUI, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
 			
 			local strStopAP = "Autoplay = ".. tostring(AutoplayManager.IsActive()).." (press Shift+A to toggle)";
-			StatusMessage( strStopAP, 6, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strStopAP, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
 			
 			local strAutoWar = "Auto Declare War = ".. tostring(bAllWar).." (press Shift+W to toggle)";
-			StatusMessage( strAutoWar, 7, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strAutoWar, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
 			
 			local strNotifications = "Display Notifications = ".. tostring(bNotifications).." (press Shift+N to toggle)";
-			StatusMessage( strNotifications, 8, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strNotifications, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
+			
+			local strNotifications = "Silent mode (no messages) = ".. tostring(bSilentMode).." (press Shift+S to toggle)";
+			StatusMessage( strNotifications, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
 			
 			local strQuick = "Quick Movement / Combat = ".. tostring(UserConfiguration.GetValue("QuickMovement") == 1).." (press Q to toggle)";
-			StatusMessage( strQuick, 9, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strQuick, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
 			
 			local strAutoEnd = "Auto End Turn = ".. tostring(UserConfiguration.GetValue("AutoEndTurn") == 1).." (press Shift+E to toggle)";
-			StatusMessage( strAutoEnd, 10, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strAutoEnd, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
 			
 			local strTimer = "Show Turn Time = ".. tostring(bTurnTimer).." (press Shift+T to toggle)";
-			StatusMessage( strTimer, 11, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strTimer, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
 			
 			local strTimer = "Show players Time = ".. tostring(bPlayerTimer).." (press Alt+T to toggle)";
-			StatusMessage( strTimer, 12, ReportingStatusTypes.DEFAULT )
+			StatusMessage( strTimer, 10, ReportingStatusTypes.DEFAULT, bForceDisplay )
 			
 		elseif pInputStruct:GetKey() == Keys.A and pInputStruct:IsShiftDown() then
 			if AutoplayManager.IsActive() then				
@@ -1034,7 +1051,12 @@ function OnInputHandler( pInputStruct:table )
 			
 		elseif pInputStruct:GetKey() == Keys.N and pInputStruct:IsShiftDown() then
 			bNotifications = not bNotifications
-			StatusMessage( "Display Notifications = " .. tostring(bNotifications), 2, ReportingStatusTypes.DEFAULT )			
+			StatusMessage( "Display Notifications = " .. tostring(bNotifications), 2, ReportingStatusTypes.DEFAULT )
+			
+		elseif pInputStruct:GetKey() == Keys.S and pInputStruct:IsShiftDown() then
+			bSilentMode = not bSilentMode
+			local bForceDisplay = true
+			StatusMessage( "Silent Mode = " .. tostring(bSilentMode), 2, ReportingStatusTypes.DEFAULT, bForceDisplay)	
 			
 		elseif pInputStruct:GetKey() == Keys.Q then
 			local bQuick = false
@@ -1072,7 +1094,6 @@ function OnInputHandler( pInputStruct:table )
 	end
 	return false;
 end
-ContextPtr:SetInputHandler( OnInputHandler, true )
 
 function OnLoadScreenClose()
 
@@ -1080,12 +1101,13 @@ function OnLoadScreenClose()
 	iTimerSessionStart = os.time()
 
 	if bAutoStart and not (Game.GetCurrentGameTurn() > GameConfiguration.GetStartTurn()) then
-		StartAutoPlay()
+		--StartAutoPlay()
 	else
 		StopAuToPlay()
 	end
-	
-	StatusMessage( "(press H for Autoplay Help)", 5, ReportingStatusTypes.DEFAULT )
+	Automation.SetInputHandler( OnInputHandler )
+	StatusMessage( "Press Shift+A to start Autoplay", 5, ReportingStatusTypes.DEFAULT )
+	StatusMessage( "Press H for Autoplay Help", 5, ReportingStatusTypes.DEFAULT )
 end
 Events.LoadScreenClose.Add( OnLoadScreenClose )
 
@@ -1132,82 +1154,26 @@ function NewTurn()
 end
 Events.TurnBegin.Add(NewTurn)
 
--------------------------------------------------------------------------------
--- from StatusMessagePanel.lua
--------------------------------------------------------------------------------
--- =========================================================================== 
--- Status Message Manager
--- Non-interactive messages that appear in the upper-center of the screen.
--- =========================================================================== 
-
--- =========================================================================== 
---	CONSTANTS
--- =========================================================================== 
-local DEFAULT_TIME_TO_DISPLAY	:number = 10;	-- Seconds to display the message
 
 
 -- =========================================================================== 
---	VARIABLES
+--	Send Status message
 -- =========================================================================== 
-
-local m_statusIM				:table = InstanceManager:new( "StatusMessageInstance", "Root", Controls.StackOfMessages );
-local m_gossipIM				:table = InstanceManager:new( "GossipMessageInstance", "Root", Controls.StackOfMessages );
-
-local PlayerConnectedChatStr	:string = Locale.Lookup( "LOC_MP_PLAYER_CONNECTED_CHAT" );
-local PlayerDisconnectedChatStr :string	= Locale.Lookup( "LOC_MP_PLAYER_DISCONNECTED_CHAT" );
-local PlayerKickedChatStr		:string	= Locale.Lookup( "LOC_MP_PLAYER_KICKED_CHAT" );
-
-local m_kMessages :table = {};
-
-
--- =========================================================================== 
---	FUNCTIONS
--- =========================================================================== 
-
--- =========================================================================== 
--- =========================================================================== 
-function StatusMessage( str:string, fDisplayTime:number, type:number )
-
-	if (type == ReportingStatusTypes.DEFAULT or
-		type == ReportingStatusTypes.GOSSIP) then	-- A type we handle?
-
-		local kTypeEntry :table = m_kMessages[type];
-		if (kTypeEntry == nil) then
-			-- New type
-			m_kMessages[type] = {
-				InstanceManager = nil,
-				MessageInstances= {}
-			};
-			kTypeEntry = m_kMessages[type];
-
-			-- Link to the instance manager and the stack the UI displays in
-			if (type == ReportingStatusTypes.GOSSIP) then
-				kTypeEntry.InstanceManager	= m_gossipIM;
-			else
-				kTypeEntry.InstanceManager	= m_statusIM;
-			end
-		end
-
-		local pInstance:table = kTypeEntry.InstanceManager:GetInstance();
-		table.insert( kTypeEntry.MessageInstances, pInstance );
-
-		local timeToDisplay:number = (fDisplayTime > 0) and fDisplayTime or DEFAULT_TIME_TO_DISPLAY;
-		pInstance.StatusLabel:SetText( str );		
-		pInstance.Anim:SetEndPauseTime( timeToDisplay );
-		pInstance.Anim:RegisterEndCallback( function() OnEndAnim(kTypeEntry,pInstance) end );
-		pInstance.Anim:SetToBeginning();
-		pInstance.Anim:Play();
-
-		Controls.StackOfMessages:CalculateSize();
-		Controls.StackOfMessages:ReprocessAnchoring();
+function StatusMessage( str:string, fDisplayTime:number, type:number, bForceDisplay )
+	if (not bSilentMode) or bForceDisplay then
+		LuaEvents.StatusMessage(str, fDisplayTime, type)
 	end
 end
 
--- ===========================================================================
-function OnEndAnim( kTypeEntry:table, pInstance:table )
-	pInstance.Anim:ClearEndCallback();
-	Controls.StackOfMessages:CalculateSize();
-	Controls.StackOfMessages:ReprocessAnchoring();
-	kTypeEntry.InstanceManager:ReleaseInstance( pInstance ) 	
-end
 
+-- ===========================================================================
+--	Initialize
+-- ===========================================================================
+function Initialize()
+	--ContextPtr:SetInitHandler( OnInit );
+	--ContextPtr:SetInputHandler( OnInputHandler, true );
+	--ContextPtr:SetRefreshHandler( OnRefresh );
+	print(ContextPtr)
+	ContextPtr:SetInputHandler( OnInputHandler, true )
+end
+Initialize();

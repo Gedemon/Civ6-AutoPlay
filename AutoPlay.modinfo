@@ -1,38 +1,39 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Mod id="669be1ba-7530-419d-8246-d3863628dfe8" version="1">
-<Properties>
-	<Name>LOC_AUTOPLAY_TITLE</Name>
-	<Stability>Beta</Stability>
-	<Teaser>LOC_AUTOPLAY_TEASER</Teaser>
-	<Description>LOC_AUTOPLAY_DESCRIPTION</Description>
-	<Authors>Firaxis, Gedemon</Authors>
-	<EnabledByDefault>0</EnabledByDefault>
-	<EnabledAtStartup>0</EnabledAtStartup>
-</Properties>
+	<Properties>
+		<Name>LOC_AUTOPLAY_TITLE</Name>
+		<Stability>Beta</Stability>
+		<Teaser>LOC_AUTOPLAY_TEASER</Teaser>
+		<Description>LOC_AUTOPLAY_DESCRIPTION</Description>
+		<Authors>Firaxis, Gedemon</Authors>
+		<EnabledByDefault>0</EnabledByDefault>
+		<AffectsSavedGames>0</AffectsSavedGames>
+		<CompatibleVersions>2.0</CompatibleVersions>
+	</Properties>
 
-  	<Settings>
-		<Custom id="AutoPlaySettings">
-			<Items>
-				<File>Config.xml</File>
-			</Items>
-		</Custom>
-		<LocalizedText id="AutoPlaySettings">
-			<Items>
-				<File>ConfigText.xml</File>
-			</Items>
-		</LocalizedText>
-	</Settings>	
+  	<FrontEndActions>
+		<UpdateDatabase id="AutoPlaySettings">
+			<File>Config.xml</File>
+		</UpdateDatabase>
+		<UpdateText id="AutoPlaySettings">
+			<File>ConfigText.xml</File>
+		</UpdateText>
+	</FrontEndActions>	
   
-	<Components>
-		<UserInterface>		
+	<InGameActions>
+        <AddUserInterfaces>
 			<Properties>
 				<Context>InGame</Context>
 			</Properties>
-			<Items>
-				<File>AutoPlay_InGame.xml</File>
-			</Items>
-		</UserInterface>	
-	</Components>
+			<File>AutoPlay_InGame.xml</File>
+		</AddUserInterfaces>
+		<ReplaceUIScript>
+			<Properties>
+				<LuaContext>StatusMessagePanel</LuaContext>
+				<LuaReplace>StatusMessagePanelAddOn.lua</LuaReplace>
+			</Properties>
+		</ReplaceUIScript>
+	</InGameActions>
 	
 	<LocalizedText>
 		<Text id="LOC_AUTOPLAY_TITLE">
@@ -51,5 +52,6 @@
 		<File>AutoPlay_InGame.lua</File>
 		<File>Config.xml</File>
 		<File>ConfigText.xml</File>
+		<File>StatusMessagePanelAddOn.lua</File>
 	</Files>
 </Mod>
